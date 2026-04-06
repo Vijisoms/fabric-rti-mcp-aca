@@ -1,0 +1,860 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.42.1.51946",
+      "templateHash": "5189768546000292414"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Location for all resources"
+      }
+    },
+    "acaName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name for the Azure Container App"
+      }
+    },
+    "entraAppDisplayName": {
+      "type": "string",
+      "metadata": {
+        "description": "Display name for the Entra App"
+      }
+    },
+    "foundryProjectResourceId": {
+      "type": "string",
+      "metadata": {
+        "description": "Microsoft Foundry project resource ID for assigning Entra App role to Foundry project managed identity"
+      }
+    },
+    "serviceManagementReference": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Service Management Reference for the Entra Application. Optional GUID used to link the app to a service in Azure."
+      }
+    },
+    "appInsightsConnectionString": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Application Insights connection string. Use \"DISABLED\" to disable telemetry, or provide existing connection string. If omitted, new App Insights will be created."
+      }
+    },
+    "kustoKnownServices": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Kusto known services JSON configuration"
+      }
+    }
+  },
+  "variables": {
+    "appInsightsName": "[format('{0}-insights', parameters('acaName'))]",
+    "entraAppUniqueName": "[format('{0}-{1}', replace(toLower(parameters('entraAppDisplayName')), ' ', '-'), uniqueString(resourceGroup().id))]",
+    "acrName": "[replace(format('cr{0}{1}', parameters('acaName'), uniqueString(resourceGroup().id)), '-', '')]",
+    "identityName": "[format('{0}-identity', parameters('acaName'))]",
+    "acrPullRoleId": "7f951dda-4ed3-4680-a7ca-43fe172d538d",
+    "additionalEnvVars": "[concat(createArray(createObject('name', 'KUSTO_EAGER_CONNECT', 'value', 'false')), if(not(empty(parameters('kustoKnownServices'))), createArray(createObject('name', 'KUSTO_KNOWN_SERVICES', 'value', parameters('kustoKnownServices'))), createArray()))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.ContainerRegistry/registries",
+      "apiVersion": "2023-07-01",
+      "name": "[if(greater(length(variables('acrName')), 50), substring(variables('acrName'), 0, 50), variables('acrName'))]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Basic"
+      },
+      "properties": {
+        "adminUserEnabled": false
+      }
+    },
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-01-31",
+      "name": "[variables('identityName')]",
+      "location": "[parameters('location')]"
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.ContainerRegistry/registries', if(greater(length(variables('acrName')), 50), substring(variables('acrName'), 0, 50), variables('acrName')))]",
+      "name": "[guid(resourceId('Microsoft.ContainerRegistry/registries', if(greater(length(variables('acrName')), 50), substring(variables('acrName'), 0, 50), variables('acrName'))), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('identityName')), variables('acrPullRoleId'))]",
+      "properties": {
+        "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('identityName')), '2023-01-31').principalId]",
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('acrPullRoleId'))]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ContainerRegistry/registries', if(greater(length(variables('acrName')), 50), substring(variables('acrName'), 0, 50), variables('acrName')))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('identityName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "application-insights-deployment",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "appInsightsConnectionString": {
+            "value": "[parameters('appInsightsConnectionString')]"
+          },
+          "name": {
+            "value": "[variables('appInsightsName')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.42.1.51946",
+              "templateHash": "5580396385342944893"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]",
+              "metadata": {
+                "description": "Location for all resources"
+              }
+            },
+            "appInsightsConnectionString": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Application Insights connection string. Use \"DISABLED\" to disable telemetry, or provide existing connection string. If omitted, new App Insights will be created."
+              }
+            },
+            "name": {
+              "type": "string",
+              "metadata": {
+                "description": "Name for new Application Insights (only used if connection string is empty)"
+              }
+            }
+          },
+          "variables": {
+            "shouldCreate": "[empty(parameters('appInsightsConnectionString'))]",
+            "isDisabled": "[equals(parameters('appInsightsConnectionString'), 'DISABLED')]"
+          },
+          "resources": [
+            {
+              "condition": "[variables('shouldCreate')]",
+              "type": "Microsoft.OperationalInsights/workspaces",
+              "apiVersion": "2022-10-01",
+              "name": "[format('{0}-workspace', parameters('name'))]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "sku": {
+                  "name": "PerGB2018"
+                },
+                "retentionInDays": 30
+              }
+            },
+            {
+              "condition": "[variables('shouldCreate')]",
+              "type": "Microsoft.Insights/components",
+              "apiVersion": "2020-02-02",
+              "name": "[parameters('name')]",
+              "location": "[parameters('location')]",
+              "kind": "web",
+              "properties": {
+                "Application_Type": "web",
+                "WorkspaceResourceId": "[resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-workspace', parameters('name')))]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-workspace', parameters('name')))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "connectionString": {
+              "type": "string",
+              "value": "[if(variables('shouldCreate'), coalesce(tryGet(if(variables('shouldCreate'), reference(resourceId('Microsoft.Insights/components', parameters('name')), '2020-02-02', 'full'), null()), 'properties', 'ConnectionString'), ''), if(variables('isDisabled'), '', parameters('appInsightsConnectionString')))]"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "entra-app-deployment",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "entraAppDisplayName": {
+            "value": "[parameters('entraAppDisplayName')]"
+          },
+          "entraAppUniqueName": {
+            "value": "[variables('entraAppUniqueName')]"
+          },
+          "serviceManagementReference": {
+            "value": "[parameters('serviceManagementReference')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "languageVersion": "2.0",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.42.1.51946",
+              "templateHash": "13777274368873756304"
+            }
+          },
+          "parameters": {
+            "entraAppDisplayName": {
+              "type": "string",
+              "metadata": {
+                "description": "Display name for the Entra Application"
+              }
+            },
+            "entraAppUniqueName": {
+              "type": "string",
+              "metadata": {
+                "description": "Unique name for the Entra Application"
+              }
+            },
+            "serviceManagementReference": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Service Management Reference for the Entra Application. Optional GUID used to link the app to a service in Azure."
+              }
+            }
+          },
+          "variables": {
+            "entraAppRoleValue": "Mcp.Tools.ReadWrite.All",
+            "entraAppRoleId": "[guid(subscription().id, variables('entraAppRoleValue'))]",
+            "entraAppRoleDisplayName": "Azure MCP Tools ReadWrite All",
+            "entraAppRoleDescription": "Application permission for Azure MCP tool calls",
+            "entraAppScopeValue": "Mcp.Tools.ReadWrite",
+            "entraAppScopeId": "[guid(subscription().id, variables('entraAppScopeValue'))]",
+            "entraAppScopeDisplayName": "Azure MCP Tools ReadWrite",
+            "entraAppScopeDescription": "Delegated permission for Azure MCP tool calls",
+            "vsCodeClientAppId": "aebc6443-996d-45c2-90f0-388ff96faa56"
+          },
+          "imports": {
+            "microsoftGraphV1": {
+              "provider": "MicrosoftGraph",
+              "version": "1.0.0"
+            }
+          },
+          "resources": {
+            "entraApp": {
+              "import": "microsoftGraphV1",
+              "type": "Microsoft.Graph/applications@v1.0",
+              "properties": {
+                "uniqueName": "[parameters('entraAppUniqueName')]",
+                "displayName": "[parameters('entraAppDisplayName')]",
+                "serviceManagementReference": "[if(not(empty(parameters('serviceManagementReference'))), parameters('serviceManagementReference'), null())]",
+                "appRoles": [
+                  {
+                    "id": "[variables('entraAppRoleId')]",
+                    "displayName": "[variables('entraAppRoleDisplayName')]",
+                    "description": "[variables('entraAppRoleDescription')]",
+                    "value": "[variables('entraAppRoleValue')]",
+                    "isEnabled": true,
+                    "allowedMemberTypes": [
+                      "Application"
+                    ]
+                  }
+                ],
+                "api": {
+                  "requestedAccessTokenVersion": 2,
+                  "oauth2PermissionScopes": [
+                    {
+                      "id": "[variables('entraAppScopeId')]",
+                      "value": "[variables('entraAppScopeValue')]",
+                      "type": "User",
+                      "adminConsentDisplayName": "[variables('entraAppScopeDisplayName')]",
+                      "adminConsentDescription": "[variables('entraAppScopeDescription')]",
+                      "userConsentDisplayName": "[variables('entraAppScopeDisplayName')]",
+                      "userConsentDescription": "[variables('entraAppScopeDescription')]",
+                      "isEnabled": true
+                    }
+                  ]
+                }
+              }
+            },
+            "entraAppUpdate": {
+              "import": "microsoftGraphV1",
+              "type": "Microsoft.Graph/applications@v1.0",
+              "properties": {
+                "uniqueName": "[parameters('entraAppUniqueName')]",
+                "displayName": "[parameters('entraAppDisplayName')]",
+                "serviceManagementReference": "[if(not(empty(parameters('serviceManagementReference'))), parameters('serviceManagementReference'), null())]",
+                "appRoles": "[reference('entraApp').appRoles]",
+                "identifierUris": [
+                  "[format('api://{0}', reference('entraApp').appId)]"
+                ],
+                "api": {
+                  "requestedAccessTokenVersion": 2,
+                  "oauth2PermissionScopes": "[reference('entraApp').api.oauth2PermissionScopes]",
+                  "preAuthorizedApplications": [
+                    {
+                      "appId": "[variables('vsCodeClientAppId')]",
+                      "delegatedPermissionIds": [
+                        "[variables('entraAppScopeId')]"
+                      ]
+                    }
+                  ]
+                }
+              },
+              "dependsOn": [
+                "entraApp"
+              ]
+            },
+            "entraServicePrincipal": {
+              "import": "microsoftGraphV1",
+              "type": "Microsoft.Graph/servicePrincipals@v1.0",
+              "properties": {
+                "appId": "[reference('entraApp').appId]"
+              },
+              "dependsOn": [
+                "entraApp"
+              ]
+            }
+          },
+          "outputs": {
+            "entraAppClientId": {
+              "type": "string",
+              "value": "[reference('entraApp').appId]"
+            },
+            "entraAppObjectId": {
+              "type": "string",
+              "value": "[reference('entraApp').id]"
+            },
+            "entraAppIdentifierUri": {
+              "type": "string",
+              "value": "[format('api://{0}', reference('entraApp').appId)]"
+            },
+            "entraAppRoleValue": {
+              "type": "string",
+              "value": "[variables('entraAppRoleValue')]"
+            },
+            "entraAppRoleId": {
+              "type": "string",
+              "value": "[reference('entraApp').appRoles[0].id]"
+            },
+            "entraAppServicePrincipalObjectId": {
+              "type": "string",
+              "value": "[reference('entraServicePrincipal').id]"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "aca-infrastructure-deployment",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "name": {
+            "value": "[parameters('acaName')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "acrLoginServer": {
+            "value": "[reference(resourceId('Microsoft.ContainerRegistry/registries', if(greater(length(variables('acrName')), 50), substring(variables('acrName'), 0, 50), variables('acrName'))), '2023-07-01').loginServer]"
+          },
+          "imageName": {
+            "value": "fabric-rti-mcp:latest"
+          },
+          "identityId": {
+            "value": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('identityName'))]"
+          },
+          "identityClientId": {
+            "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('identityName')), '2023-01-31').clientId]"
+          },
+          "appInsightsConnectionString": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'application-insights-deployment'), '2025-04-01').outputs.connectionString.value]"
+          },
+          "azureMcpCollectTelemetry": {
+            "value": "[string(not(empty(reference(resourceId('Microsoft.Resources/deployments', 'application-insights-deployment'), '2025-04-01').outputs.connectionString.value)))]"
+          },
+          "azureAdTenantId": {
+            "value": "[tenant().tenantId]"
+          },
+          "azureAdClientId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'entra-app-deployment'), '2025-04-01').outputs.entraAppClientId.value]"
+          },
+          "additionalEnvVars": {
+            "value": "[variables('additionalEnvVars')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.42.1.51946",
+              "templateHash": "9928664926763340351"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]",
+              "metadata": {
+                "description": "Location for all resources"
+              }
+            },
+            "name": {
+              "type": "string",
+              "metadata": {
+                "description": "Default name for Azure Container App, and name prefix for all other resources"
+              }
+            },
+            "containerAppName": {
+              "type": "string",
+              "defaultValue": "[parameters('name')]",
+              "metadata": {
+                "description": "Azure Container App name"
+              }
+            },
+            "environmentName": {
+              "type": "string",
+              "defaultValue": "[format('{0}-env', parameters('name'))]",
+              "metadata": {
+                "description": "Environment name for the Container Apps Environment"
+              }
+            },
+            "acrLoginServer": {
+              "type": "string",
+              "metadata": {
+                "description": "ACR login server (e.g., myacr.azurecr.io)"
+              }
+            },
+            "imageName": {
+              "type": "string",
+              "metadata": {
+                "description": "Container image name including tag (e.g., fabric-rti-mcp:latest)"
+              }
+            },
+            "identityId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the user-assigned managed identity for ACR pull"
+              }
+            },
+            "identityClientId": {
+              "type": "string",
+              "metadata": {
+                "description": "Client ID of the user-assigned managed identity"
+              }
+            },
+            "cpuCores": {
+              "type": "string",
+              "defaultValue": "0.5",
+              "metadata": {
+                "description": "Number of CPU cores allocated to the container"
+              }
+            },
+            "memorySize": {
+              "type": "string",
+              "defaultValue": "1Gi",
+              "metadata": {
+                "description": "Amount of memory allocated to the container"
+              }
+            },
+            "minReplicas": {
+              "type": "int",
+              "defaultValue": 1,
+              "metadata": {
+                "description": "Minimum number of replicas"
+              }
+            },
+            "maxReplicas": {
+              "type": "int",
+              "defaultValue": 10,
+              "metadata": {
+                "description": "Maximum number of replicas"
+              }
+            },
+            "appInsightsConnectionString": {
+              "type": "string",
+              "metadata": {
+                "description": "Application Insights connection string"
+              }
+            },
+            "azureMcpCollectTelemetry": {
+              "type": "string",
+              "metadata": {
+                "description": "Whether to collect telemetry"
+              }
+            },
+            "azureAdTenantId": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure AD Tenant ID"
+              }
+            },
+            "azureAdClientId": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure AD Client ID"
+              }
+            },
+            "additionalEnvVars": {
+              "type": "array",
+              "defaultValue": [],
+              "metadata": {
+                "description": "Additional environment variables for the container"
+              }
+            },
+            "fetchLatestRevision": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Use the placeholder image for initial provisioning when the real image has not been pushed to ACR yet"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.App/managedEnvironments",
+              "apiVersion": "2024-03-01",
+              "name": "[parameters('environmentName')]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "workloadProfiles": [
+                  {
+                    "name": "Consumption",
+                    "workloadProfileType": "Consumption"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Microsoft.App/containerApps",
+              "apiVersion": "2024-03-01",
+              "name": "[parameters('containerAppName')]",
+              "location": "[parameters('location')]",
+              "tags": {
+                "azd-service-name": "mcp",
+                "product": "fabric-rti-mcp"
+              },
+              "identity": {
+                "type": "SystemAssigned,UserAssigned",
+                "userAssignedIdentities": {
+                  "[format('{0}', parameters('identityId'))]": {}
+                }
+              },
+              "properties": {
+                "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironments', parameters('environmentName'))]",
+                "workloadProfileName": "Consumption",
+                "configuration": {
+                  "activeRevisionsMode": "Single",
+                  "ingress": {
+                    "external": true,
+                    "targetPort": 3000,
+                    "allowInsecure": false,
+                    "transport": "http",
+                    "traffic": [
+                      {
+                        "weight": 100,
+                        "latestRevision": true
+                      }
+                    ]
+                  },
+                  "registries": [
+                    {
+                      "server": "[parameters('acrLoginServer')]",
+                      "identity": "[parameters('identityId')]"
+                    }
+                  ]
+                },
+                "template": {
+                  "containers": [
+                    {
+                      "image": "[if(parameters('fetchLatestRevision'), 'mcr.microsoft.com/k8se/quickstart:latest', format('{0}/{1}', parameters('acrLoginServer'), parameters('imageName')))]",
+                      "name": "[parameters('containerAppName')]",
+                      "resources": {
+                        "cpu": "[json(parameters('cpuCores'))]",
+                        "memory": "[parameters('memorySize')]"
+                      },
+                      "env": "[concat(createArray(createObject('name', 'FABRIC_RTI_TRANSPORT', 'value', 'http'), createObject('name', 'FABRIC_RTI_HTTP_HOST', 'value', '0.0.0.0'), createObject('name', 'FABRIC_RTI_HTTP_PORT', 'value', '3000'), createObject('name', 'FABRIC_RTI_HTTP_PATH', 'value', '/mcp'), createObject('name', 'FABRIC_RTI_STATELESS_HTTP', 'value', 'true'), createObject('name', 'AZURE_CLIENT_ID', 'value', parameters('identityClientId')), createObject('name', 'AzureAd__Instance', 'value', environment().authentication.loginEndpoint), createObject('name', 'AzureAd__TenantId', 'value', parameters('azureAdTenantId')), createObject('name', 'AzureAd__ClientId', 'value', parameters('azureAdClientId')), createObject('name', 'AZURE_MCP_COLLECT_TELEMETRY', 'value', parameters('azureMcpCollectTelemetry')), createObject('name', 'AZURE_MCP_DANGEROUSLY_DISABLE_HTTPS_REDIRECTION', 'value', 'true'), createObject('name', 'AZURE_MCP_DANGEROUSLY_ENABLE_FORWARDED_HEADERS', 'value', 'true')), if(not(empty(parameters('appInsightsConnectionString'))), createArray(createObject('name', 'APPLICATIONINSIGHTS_CONNECTION_STRING', 'value', parameters('appInsightsConnectionString'))), createArray()), parameters('additionalEnvVars'))]",
+                      "probes": [
+                        {
+                          "type": "Liveness",
+                          "httpGet": {
+                            "path": "/health",
+                            "port": 3000
+                          },
+                          "initialDelaySeconds": 10,
+                          "periodSeconds": 30
+                        },
+                        {
+                          "type": "Readiness",
+                          "httpGet": {
+                            "path": "/health",
+                            "port": 3000
+                          },
+                          "initialDelaySeconds": 5,
+                          "periodSeconds": 10
+                        }
+                      ]
+                    }
+                  ],
+                  "scale": {
+                    "minReplicas": "[parameters('minReplicas')]",
+                    "maxReplicas": "[parameters('maxReplicas')]",
+                    "rules": [
+                      {
+                        "name": "http-scaler",
+                        "http": {
+                          "metadata": {
+                            "concurrentRequests": "100"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.App/managedEnvironments', parameters('environmentName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "containerAppResourceId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.App/containerApps', parameters('containerAppName'))]"
+            },
+            "containerAppUrl": {
+              "type": "string",
+              "value": "[format('https://{0}', reference(resourceId('Microsoft.App/containerApps', parameters('containerAppName')), '2024-03-01').configuration.ingress.fqdn)]"
+            },
+            "containerAppName": {
+              "type": "string",
+              "value": "[parameters('containerAppName')]"
+            },
+            "containerAppPrincipalId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.App/containerApps', parameters('containerAppName')), '2024-03-01', 'full').identity.principalId]"
+            },
+            "containerAppEnvironmentId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.App/managedEnvironments', parameters('environmentName'))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ContainerRegistry/registries', if(greater(length(variables('acrName')), 50), substring(variables('acrName'), 0, 50), variables('acrName')))]",
+        "[extensionResourceId(resourceId('Microsoft.ContainerRegistry/registries', if(greater(length(variables('acrName')), 50), substring(variables('acrName'), 0, 50), variables('acrName'))), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.ContainerRegistry/registries', if(greater(length(variables('acrName')), 50), substring(variables('acrName'), 0, 50), variables('acrName'))), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('identityName')), variables('acrPullRoleId')))]",
+        "[resourceId('Microsoft.Resources/deployments', 'application-insights-deployment')]",
+        "[resourceId('Microsoft.Resources/deployments', 'entra-app-deployment')]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('identityName'))]"
+      ]
+    },
+    {
+      "condition": "[not(empty(parameters('foundryProjectResourceId')))]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "foundry-role-assignment",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "foundryProjectResourceId": {
+            "value": "[parameters('foundryProjectResourceId')]"
+          },
+          "entraAppServicePrincipalObjectId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'entra-app-deployment'), '2025-04-01').outputs.entraAppServicePrincipalObjectId.value]"
+          },
+          "entraAppRoleId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'entra-app-deployment'), '2025-04-01').outputs.entraAppRoleId.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "languageVersion": "2.0",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.42.1.51946",
+              "templateHash": "17092517867203011812"
+            }
+          },
+          "parameters": {
+            "foundryProjectResourceId": {
+              "type": "string",
+              "metadata": {
+                "example": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myResourceGroup/providers/Microsoft.CognitiveServices/accounts/myAccount/projects/firstProject",
+                "description": "Microsoft Foundry project resource ID"
+              }
+            },
+            "entraAppServicePrincipalObjectId": {
+              "type": "string",
+              "metadata": {
+                "description": "Entra App Service Principal Object ID (resourceId in Graph API)"
+              }
+            },
+            "entraAppRoleId": {
+              "type": "string",
+              "metadata": {
+                "description": "Entra App Role ID to assign"
+              }
+            }
+          },
+          "variables": {
+            "resourceIdParts": "[split(parameters('foundryProjectResourceId'), '/')]",
+            "isProjectResource": "[greater(length(variables('resourceIdParts')), 10)]",
+            "projectResourceGroup": "[variables('resourceIdParts')[4]]",
+            "accountName": "[variables('resourceIdParts')[8]]"
+          },
+          "imports": {
+            "microsoftGraphV1": {
+              "provider": "MicrosoftGraph",
+              "version": "1.0.0"
+            }
+          },
+          "resources": {
+            "foundryProject": {
+              "condition": "[variables('isProjectResource')]",
+              "existing": true,
+              "type": "Microsoft.CognitiveServices/accounts/projects",
+              "apiVersion": "2025-04-01-preview",
+              "resourceGroup": "[variables('projectResourceGroup')]",
+              "name": "[format('{0}/{1}', variables('accountName'), variables('resourceIdParts')[10])]"
+            },
+            "foundryAccount": {
+              "condition": "[not(variables('isProjectResource'))]",
+              "existing": true,
+              "type": "Microsoft.CognitiveServices/accounts",
+              "apiVersion": "2024-10-01",
+              "resourceGroup": "[variables('projectResourceGroup')]",
+              "name": "[variables('accountName')]"
+            },
+            "appRoleAssignment": {
+              "import": "microsoftGraphV1",
+              "type": "Microsoft.Graph/appRoleAssignedTo@v1.0",
+              "properties": {
+                "principalId": "[if(variables('isProjectResource'), reference('foundryProject', '2025-04-01-preview', 'full').identity.principalId, reference('foundryAccount', '2024-10-01', 'full').identity.principalId)]",
+                "resourceId": "[parameters('entraAppServicePrincipalObjectId')]",
+                "appRoleId": "[parameters('entraAppRoleId')]"
+              },
+              "dependsOn": [
+                "foundryAccount",
+                "foundryProject"
+              ]
+            }
+          },
+          "outputs": {
+            "roleAssignmentId": {
+              "type": "string",
+              "value": "[reference('appRoleAssignment').id]"
+            },
+            "foundryProjectMIPrincipalId": {
+              "type": "string",
+              "value": "[if(variables('isProjectResource'), reference('foundryProject', '2025-04-01-preview', 'full').identity.principalId, reference('foundryAccount', '2024-10-01', 'full').identity.principalId)]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'entra-app-deployment')]"
+      ]
+    }
+  ],
+  "outputs": {
+    "AZURE_TENANT_ID": {
+      "type": "string",
+      "value": "[tenant().tenantId]"
+    },
+    "AZURE_LOCATION": {
+      "type": "string",
+      "value": "[parameters('location')]"
+    },
+    "ENTRA_APP_CLIENT_ID": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'entra-app-deployment'), '2025-04-01').outputs.entraAppClientId.value]"
+    },
+    "ENTRA_APP_OBJECT_ID": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'entra-app-deployment'), '2025-04-01').outputs.entraAppObjectId.value]"
+    },
+    "ENTRA_APP_SERVICE_PRINCIPAL_ID": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'entra-app-deployment'), '2025-04-01').outputs.entraAppServicePrincipalObjectId.value]"
+    },
+    "ENTRA_APP_ROLE_ID": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'entra-app-deployment'), '2025-04-01').outputs.entraAppRoleId.value]"
+    },
+    "ENTRA_APP_IDENTIFIER_URI": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'entra-app-deployment'), '2025-04-01').outputs.entraAppIdentifierUri.value]"
+    },
+    "CONTAINER_APP_URL": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'aca-infrastructure-deployment'), '2025-04-01').outputs.containerAppUrl.value]"
+    },
+    "CONTAINER_APP_NAME": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'aca-infrastructure-deployment'), '2025-04-01').outputs.containerAppName.value]"
+    },
+    "CONTAINER_APP_PRINCIPAL_ID": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'aca-infrastructure-deployment'), '2025-04-01').outputs.containerAppPrincipalId.value]"
+    },
+    "AZURE_CONTAINER_APP_ENVIRONMENT_ID": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'aca-infrastructure-deployment'), '2025-04-01').outputs.containerAppEnvironmentId.value]"
+    },
+    "AZURE_CONTAINER_REGISTRY_NAME": {
+      "type": "string",
+      "value": "[if(greater(length(variables('acrName')), 50), substring(variables('acrName'), 0, 50), variables('acrName'))]"
+    },
+    "AZURE_CONTAINER_REGISTRY_ENDPOINT": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.ContainerRegistry/registries', if(greater(length(variables('acrName')), 50), substring(variables('acrName'), 0, 50), variables('acrName'))), '2023-07-01').loginServer]"
+    },
+    "APPLICATION_INSIGHTS_NAME": {
+      "type": "string",
+      "value": "[variables('appInsightsName')]"
+    },
+    "APPLICATION_INSIGHTS_CONNECTION_STRING": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'application-insights-deployment'), '2025-04-01').outputs.connectionString.value]"
+    },
+    "AZURE_MCP_COLLECT_TELEMETRY": {
+      "type": "string",
+      "value": "[string(not(empty(reference(resourceId('Microsoft.Resources/deployments', 'application-insights-deployment'), '2025-04-01').outputs.connectionString.value)))]"
+    }
+  }
+}

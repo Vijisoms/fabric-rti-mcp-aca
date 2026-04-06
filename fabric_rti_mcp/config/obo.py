@@ -15,7 +15,7 @@ class FabricRtiMcpOBOFlowEnvVarNames:
 
 
 # Default values for OBO Flow configuration
-DEFAULT_FABRIC_RTI_MCP_AZURE_TENANT_ID = "72f988bf-86f1-41af-91ab-2d7cd011db47"  # MS tenant id
+DEFAULT_FABRIC_RTI_MCP_AZURE_TENANT_ID = "8aa18793-03bf-4640-b7bf-6e0d18ad67cc"  # MS tenant id
 DEFAULT_FABRIC_RTI_MCP_ENTRA_APP_CLIENT_ID = ""
 DEFAULT_FABRIC_RTI_MCP_USER_MANAGED_IDENTITY_CLIENT_ID = ""
 DEFAULT_FABRIC_RTI_MCP_KUSTO_AUDIENCE = "https://kusto.kusto.windows.net"

@@ -17,12 +17,14 @@ classifiers = [
     "Development Status :: 2 - Pre-Alpha",
 ]
 dependencies = [
-    "httpx~=0.28.1",
-    "fastmcp>=2.5,<2.15",
+    "httpx>=0.28.1",
+    "mcp[cli]>=1.14.1",
+    "fastmcp",
     "azure-kusto-data~=5.0.0",
     "azure-identity~=1.23.0",
     "azure-kusto-ingest~=5.0.0",
-    "msal~=1.32.0"
+    "msal~=1.32.0",
+    "starlette~=0.46.0"
 ]
 
 [project.optional-dependencies]

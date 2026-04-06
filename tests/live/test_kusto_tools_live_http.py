@@ -273,13 +273,13 @@ class HttpMcpClient:
 class KustoHttpClientTester:
     """Tester for Kusto tools via HTTP MCP client."""
 
-    def __init__(self, host: str, port: int):
+    def __init__(self, host: str, port: int, cluster_uri: str, database: str):
         self.host = host
         self.port = port
         self.client: HttpMcpClient | None = None
         self.server_process: subprocess.Popen[bytes] | None = None
-        self.test_cluster_uri = "https://help.kusto.windows.net"
-        self.test_database = "Samples"
+        self.test_cluster_uri = cluster_uri
+        self.test_database = database
 
     async def setup(self) -> None:
         """Set up the test environment."""
@@ -324,69 +324,43 @@ class KustoHttpClientTester:
             print(f"❌ Error during tool listing test: {str(e)}")
             raise
 
-    async def test_list_entities(self) -> None:
-        """Test kusto_list_entities tool for all entity types."""
-        print("\n🗄️  Testing kusto_list_entities...")
+    async def test_describe_table_schema(self) -> None:
+        """Test fetching the schema of a table using kusto_describe_database_entity."""
+        print("\n🗄️  Testing kusto_describe_database_entity (table schema)...")
         if not self.client:
             raise RuntimeError("Client not initialized")
 
         if not self.test_cluster_uri:
-            print("⚠️  No KUSTO_CLUSTER_URI configured, skipping entities listing test")
+            print("⚠️  No cluster URI configured, skipping schema test")
             return
 
-        # Test data: [entity_type, [cluster_uri, database], min_expected_count, expected_first_value]
-        test_data = [
-            ["databases", [self.test_cluster_uri, None], 8, None],
-            ["tables", [self.test_cluster_uri, self.test_database], 50, None],
-            ["materialized-views", [self.test_cluster_uri, self.test_database], 0, None],
-            ["functions", [self.test_cluster_uri, self.test_database], 0, None],
-            ["graphs", [self.test_cluster_uri, self.test_database], 0, None],
-        ]
+        table_name = "Flights"
+        try:
+            result = await self.client.call_tool(
+                "kusto_describe_database_entity",
+                {
+                    "cluster_uri": self.test_cluster_uri,
+                    "database": self.test_database,
+                    "entity_name": table_name,
+                    "entity_type": "table",
+                },
+            )
 
-        for entity_type, args, min_expected_count, expected_first_value in test_data:
-            try:
-                print(f"  Testing {entity_type}...")
-                cluster_uri, database = args
+            if result.get("success"):
+                schema = result.get("result", {})
+                print(f"Schema for table '{table_name}':")
+                print(json.dumps(schema, indent=2))
 
-                call_args = {"cluster_uri": cluster_uri, "entity_type": entity_type, "database": database}
+                parsed_data = KustoFormatter.parse(schema) or []
+                assert len(parsed_data) > 0, f"Expected at least one column in table '{table_name}'"
+                print(f"  ✅ Table '{table_name}' has {len(parsed_data)} columns")
+            else:
+                print(f"  ❌ Failed to describe table '{table_name}': {result}")
+                raise AssertionError(f"Describe table failed: {result}")
 
-                result = await self.client.call_tool("kusto_list_entities", call_args)
-
-                if result.get("success"):
-                    # Use the new parser to convert to canonical format
-                    query_result = result.get("result", {})
-                    parsed_data = KustoFormatter.parse(query_result) or []
-
-                    # Assert minimum count
-                    assert len(parsed_data) >= min_expected_count, (
-                        f"Expected at least {min_expected_count} {entity_type}, "
-                    )
-                    "got {len(parsed_data)}. Args: {json.dumps(call_args)}"
-                    print(f"    ✅ Found {len(parsed_data)} {entity_type}")
-
-                    # Check expected first value if specified
-                    if expected_first_value and len(parsed_data) > 0:
-                        first_row = parsed_data[0]
-                        # For databases, check DatabaseName; for others, check appropriate name field
-                        name_field = "DatabaseName" if entity_type == "databases" else "Name"
-                        if entity_type == "tables":
-                            name_field = "TableName"
-                        elif entity_type == "functions":
-                            name_field = "Name"
-
-                        actual_first = first_row.get(name_field, "")
-                        if expected_first_value in actual_first or actual_first == expected_first_value:
-                            print(f"    ✅ Expected first value found: {actual_first}")
-                else:
-                    print(f"    ❌ Failed to list {entity_type}: {result}")
-                    print(f"    Raw failure result: {json.dumps(result, indent=4)}")
-                    if min_expected_count > 0:  # Only raise for entity types we expect to exist
-                        raise AssertionError(f"{entity_type} listing failed: {result}")
-
-            except Exception as e:
-                print(f"    ❌ Error testing {entity_type}: {e}")
-                if min_expected_count > 0:  # Only raise for entity types we expect to exist
-                    raise
+        except Exception as e:
+            print(f"  ❌ Error describing table '{table_name}': {e}")
+            raise
 
     async def test_simple_query(self) -> None:
         """Test kusto_query tool with a simple query."""
@@ -395,7 +369,7 @@ class KustoHttpClientTester:
             raise RuntimeError("Client not initialized")
 
         if not self.test_cluster_uri:
-            print("⚠️  No KUSTO_CLUSTER_URI configured, skipping query test")
+            print("⚠️  No cluster URI configured, skipping query test")
             return
 
         try:
@@ -435,7 +409,7 @@ class KustoHttpClientTester:
 
             try:
                 await self.test_list_tools()
-                await self.test_list_entities()
+                await self.test_describe_table_schema()
                 await self.test_simple_query()
             except Exception as test_error:
                 print(f"\n❌ Specific test failed: {test_error}")
@@ -540,8 +514,8 @@ def main():
         default=False,
         help="Enable OBO (On-Behalf-Of) flow to get token with Kusto audience",
     )
-    parser.add_argument("--azure-tenant-id", default="72f988bf-86f1-41af-91ab-2d7cd011db47", help="Azure tenant ID")
-    parser.add_argument("--entra-app-client-id", default=None, help="Azure AAD App Client ID")
+    parser.add_argument("--azure-tenant-id", default="8aa18793-03bf-4640-b7bf-6e0d18ad67cc", help="Azure tenant ID")
+    parser.add_argument("--entra-app-client-id", default="67f420e5-945b-422e-8164-40c92432e60a", help="Azure AAD App Client ID")
     parser.add_argument("--umi-client-id", default=None, help="User Managed Identity Client ID")
 
     # Kusto configuration
@@ -549,10 +523,10 @@ def main():
         "--cluster",
         "--cluster-uri",
         dest="cluster_uri",
-        default="https://help.kusto.windows.net",
+        default="https://trd-ggxwe88hdxqhnacwry.z8.kusto.fabric.microsoft.com",
         help="Kusto cluster URI",
     )
-    parser.add_argument("--database", default="Samples", help="Kusto database name")
+    parser.add_argument("--database", default="ehrtimcp_new", help="Kusto database name")
 
     args = parser.parse_args()
 
@@ -565,7 +539,7 @@ def main():
         time.sleep(3)
 
         async def run_tests():
-            tester = KustoHttpClientTester(args.host, args.port)
+            tester = KustoHttpClientTester(args.host, args.port, args.cluster_uri, args.database)
             await tester.run_all_tests()
 
         asyncio.run(run_tests())

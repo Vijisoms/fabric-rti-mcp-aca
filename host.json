@@ -1,0 +1,19 @@
+{
+   "version": "2.0",
+    "configurationProfile": "mcp-custom-handler",
+    "extensions": {
+        "http": {
+            "routePrefix": ""
+        }
+    },
+    "customHandler": {
+        "description": {
+            "defaultExecutablePath": "python",
+            "arguments": ["server.py"] 
+        },
+        "http": {
+            "DefaultAuthorizationLevel": "anonymous"
+        },
+        "port": "3000"
+    }
+}

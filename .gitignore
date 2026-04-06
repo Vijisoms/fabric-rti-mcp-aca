@@ -417,3 +417,6 @@ dist/*
 dist/
 
 */**/_version.py
+.azure
+
+.python_packages

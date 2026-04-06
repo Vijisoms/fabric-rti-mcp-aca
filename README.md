@@ -384,6 +384,160 @@ Additionally, the Entra app must be granted Azure Data Explorer API permissions 
 ### Remote Deployment 
 The MCP server can be deployed using the method of your choice. For example, you can follow the guide at https://github.com/Azure-Samples/mcp-sdk-functions-hosting-python/blob/main/ExistingServer.md to deploy the MCP server to an Azure Function App.
 
+### Container Apps Deployment
+
+Deploy the Fabric RTI MCP Server as a remote, HTTPS-accessible MCP server on Azure Container Apps with Entra ID authentication and Microsoft Foundry integration.
+
+#### Architecture
+
+The deployment creates the following resources in a single resource group:
+
+- **Azure Container App** — Hosts the MCP server Docker image, with system-assigned managed identity for runtime and user-assigned managed identity for ACR pull
+- **Azure Container Registry (ACR)** — Stores the Docker image (built remotely via `azd`)
+- **Entra ID App Registration** — Provides authentication with:
+  - App role `Mcp.Tools.ReadWrite.All` for Foundry agents (application permissions)
+  - Delegated scope `Mcp.Tools.ReadWrite` for VS Code users
+  - VS Code pre-authorized (client ID: `aebc6443-996d-45c2-90f0-388ff96faa56`)
+- **Foundry Role Assignment** — Assigns the Entra app role to the Foundry project's managed identity
+- **Application Insights** (optional) — Telemetry collection
+
+#### Prerequisites
+
+1. [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) installed and logged in (`az login`)
+2. [Azure Developer CLI (azd)](https://learn.microsoft.com/en-us/azure/developer/azure-developer-cli/install-azd) installed
+3. An Azure subscription with permissions to create resources and Entra app registrations
+4. A Microsoft Foundry project resource ID (for Foundry agent integration)
+
+#### Step 1: Configure the azd environment
+
+```bash
+# Create a new azd environment for the Container App deployment
+azd env new <your-env-name>
+
+# Set the required environment variables
+azd env set AZURE_LOCATION "westus2"
+azd env set AZURE_SUBSCRIPTION_ID "<your-subscription-id>"
+azd env set AZURE_RESOURCE_GROUP "<your-resource-group-name>"
+azd env set FOUNDRY_PROJECT_RESOURCE_ID "/subscriptions/<sub-id>/resourceGroups/<rg>/providers/Microsoft.CognitiveServices/accounts/<hub-name>/projects/<project-name>"
+```
+
+> **Note**: The project uses two `azure.yaml` files — `azure.functions.yaml` for Azure Functions deployment and `azure.yaml` for Container Apps. If you previously used the Functions deployment, rename the files to swap:
+> ```bash
+> mv azure.yaml azure.functions.yaml
+> mv azure.containerapp.yaml azure.yaml
+> ```
+
+#### Step 2: Deploy
+
+```bash
+azd up --no-prompt
+```
+
+This will:
+1. **Package** — Bundle the service source
+2. **Provision** — Create all Azure resources (ACR, Container App, Entra App, Foundry role assignment)
+3. **Deploy** — Build the Docker image remotely in ACR and deploy it to the Container App
+
+The deployment takes approximately 8-10 minutes. On completion, the endpoint URL is printed:
+
+```
+Endpoint: https://<your-app-name>.<unique-id>.<region>.azurecontainerapps.io/
+```
+
+The MCP endpoint is available at `https://<your-app-name>.<unique-id>.<region>.azurecontainerapps.io/mcp`.
+
+#### Step 3: Verify
+
+```bash
+# Should return 401 (Unauthorized) — confirms the endpoint is live and auth is enforced
+curl -s -o /dev/null -w "%{http_code}" https://<your-container-app-url>/
+```
+
+#### Customizing the Deployment
+
+Edit `infra/main-containerapp.parameters.json` to customize:
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `acaName` | Container App name | `fabric-rti-mcp-server` |
+| `entraAppDisplayName` | Entra app display name | `Fabric RTI MCP Server API` |
+| `foundryProjectResourceId` | Foundry project resource ID | `${FOUNDRY_PROJECT_RESOURCE_ID}` |
+| `appInsightsConnectionString` | Set to `DISABLED` to skip, or provide existing connection string | `DISABLED` |
+| `kustoKnownServices` | JSON array of preconfigured Kusto services | (empty) |
+
+### Connecting to the Container App from VS Code
+
+Add the following to your `.vscode/mcp.json`:
+
+```jsonc
+{
+  "servers": {
+    "fabric-rti-mcp-aca": {
+      "url": "https://<your-container-app-url>/mcp",
+      "type": "http"
+    }
+  }
+}
+```
+
+VS Code is pre-authorized in the Entra app with delegated scope `Mcp.Tools.ReadWrite`, so authentication is handled automatically through the browser sign-in flow.
+
+### Connecting from Microsoft Foundry
+
+The deployed MCP server is accessible to Foundry agents through the Entra app role `Mcp.Tools.ReadWrite.All`, which is automatically assigned to the Foundry project's managed identity during deployment.
+
+#### Using as an MCP Tool in a Foundry Agent
+
+1. **Open your Foundry project** in the [Azure AI Foundry portal](https://ai.azure.com)
+
+2. **Create or edit an agent** and add an MCP tool:
+   - Go to **Agents** > **Create Agent** (or open an existing agent)
+   - Under **Tools**, select **Add tool** > **MCP Server**
+   - Configure the MCP server connection:
+     - **URL**: `https://<your-container-app-url>/mcp`
+     - **Authentication**: Select **Microsoft Entra** (the Foundry project MI already has the `Mcp.Tools.ReadWrite.All` app role assigned)
+
+3. **Test the agent** — Use prompts like:
+   - "List my Kusto databases"
+   - "Sample 10 rows from the StormEvents table"
+   - "List all Eventstreams in my workspace"
+
+#### Programmatic Access from a Foundry Agent
+
+```python
+from azure.identity import DefaultAzureCredential
+from azure.ai.projects import AIProjectClient
+
+# Connect to your Foundry project
+project = AIProjectClient(
+    credential=DefaultAzureCredential(),
+    endpoint="<your-foundry-project-endpoint>",
+)
+
+# Create an agent with the MCP tool
+agent = project.agents.create_agent(
+    model="gpt-4o",
+    name="fabric-rti-agent",
+    instructions="You are a data analyst that uses Fabric RTI tools to query and analyze real-time data.",
+    tools=[{
+        "type": "mcp",
+        "mcp": {
+            "server_label": "fabric-rti-mcp",
+            "server_url": "https://<your-container-app-url>/mcp",
+            "allowed_tools": [
+                "kusto_query",
+                "kusto_list_databases",
+                "kusto_sample_table_data",
+                "eventstream_list"
+            ],
+            "require_approval": "never"
+        }
+    }],
+)
+```
+
+> **Note**: The Foundry project's managed identity must have the `Mcp.Tools.ReadWrite.All` app role on the Entra app. This is configured automatically by the `foundry-role-assignment-entraapp` Bicep module during deployment when `FOUNDRY_PROJECT_RESOURCE_ID` is set.
+
 ## 🛡️ Security Note
 
 Your credentials are always handled securely through the official [Azure Identity SDK](https://github.com/Azure/azure-sdk-for-net/blob/main/sdk/identity/Azure.Identity/README.md) - **we never store or manage tokens directly**.

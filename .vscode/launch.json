@@ -8,7 +8,7 @@
             "name": "Python Debugger: Attach to Process Id",
             "type": "debugpy",
             "request": "attach",
-            "processId": "${command:pickProcess}",
+            "processId": "${command:pickProcess}"
         },
         {
             "name": "Python Debugger: Debug server.py with Arguments",
@@ -20,7 +20,6 @@
                 "KUSTO_SERVICE_URI": "https://help.kusto.windows.net/"
             }
         },
-        // debug tests
         {
             "name": "Python Debugger: Test Current File",
             "type": "debugpy",
@@ -33,6 +32,16 @@
             "env": {
                 "KUSTO_SERVICE_URI": "https://help.kusto.windows.net/"
             }
+        },
+        {
+            "name": "Attach to Python Functions",
+            "type": "debugpy",
+            "request": "attach",
+            "connect": {
+                "host": "localhost",
+                "port": 9091
+            },
+            "preLaunchTask": "func: host start"
         }
     ]
 }

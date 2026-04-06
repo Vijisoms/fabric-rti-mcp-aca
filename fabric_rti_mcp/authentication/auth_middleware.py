@@ -162,6 +162,16 @@ def add_auth_middleware(fastmcp: FastMCP) -> None:
                 logger.info(f"Token tenant ID: {tenant_id}")
                 logger.info(f"Token scopes/roles: {scopes}")
 
+                # Log identity claims to diagnose Kusto 401s
+                oid = token_payload.get("oid", "N/A")
+                upn = token_payload.get("upn", "N/A")
+                appid = token_payload.get("appid", token_payload.get("azp", "N/A"))
+                sub = token_payload.get("sub", "N/A")
+                logger.info(f"Token oid: {oid}")
+                logger.info(f"Token upn: {upn}")
+                logger.info(f"Token appid/azp: {appid}")
+                logger.info(f"Token sub: {sub}")
+                
                 # Continue with request
                 response = await call_next(request)
 

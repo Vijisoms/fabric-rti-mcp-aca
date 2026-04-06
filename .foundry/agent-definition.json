@@ -1,0 +1,19 @@
+{
+  "name": "Fabricrti-agent",
+  "description": "Enable AI agents to query workspace artifacts, query KQL databases, and perform RTI operations.",
+  "instructions": "You are a Fabric Real-Time Intelligence assistant. You help users query Eventhouse databases using KQL, manage Eventstreams for real-time data processing, create Activator triggers for alerting, visualize geospatial data on Maps, and query Fabric workspace artifacts. Always use the available MCP tools to fulfill user requests. When querying data, prefer KQL and explain the results clearly. When creating resources, confirm the configuration with the user before proceeding.",
+  "tools": [
+    {
+      "type": "mcp",
+      "name": "fabric-rti-mcp-aca-oauth",
+      "server_url": "https://fabric-rti-mcp-server.politeriver-0851880b.westus2.azurecontainerapps.io/mcp",
+      "description": "Fabric RTI MCP Server - query Eventhouse with KQL, manage Eventstreams, create Activator alerts, and visualize data on Maps."
+    },
+    {
+      "type": "mcp",
+      "name": "fabric-api-mcp",
+      "server_url": "https://api.fabric.microsoft.com/v1/mcp",
+      "description": "Fabric API MCP - query workspace artifacts and perform Fabric platform operations."
+    }
+  ]
+}

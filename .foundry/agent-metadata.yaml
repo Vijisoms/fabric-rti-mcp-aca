@@ -1,0 +1,17 @@
+defaultEnvironment: dev
+environments:
+  dev:
+    projectEndpoint: https://aifoundryhub9616386474.services.ai.azure.com/api/projects/aifoundryhub9616386474-project
+    agentName: Fabricrti-agent
+    azureContainerRegistry: crfabricrtimcpserverw3hyqbvktyukw.azurecr.io
+    tools:
+      - name: fabric-rti-mcp-aca-oauth
+        url: https://fabric-rti-mcp-server.politeriver-0851880b.westus2.azurecontainerapps.io/mcp
+        description: >
+          Fabric RTI MCP Server - enables AI agents to query Eventhouse with KQL,
+          manage Eventstreams, create Activator alerts, and visualize data on Maps.
+      - name: fabric-api-mcp
+        url: https://api.fabric.microsoft.com/v1/mcp
+        description: >
+          Fabric API MCP - enables AI agents to query workspace artifacts and
+          perform Fabric platform operations.

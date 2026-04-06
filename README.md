@@ -538,6 +538,51 @@ agent = project.agents.create_agent(
 
 > **Note**: The Foundry project's managed identity must have the `Mcp.Tools.ReadWrite.All` app role on the Entra app. This is configured automatically by the `foundry-role-assignment-entraapp` Bicep module during deployment when `FOUNDRY_PROJECT_RESOURCE_ID` is set.
 
+### Pre-configured Foundry Agent: Fabricrti-agent
+
+This repository includes a ready-to-deploy Foundry agent configuration in the `.foundry/` directory. The **Fabricrti-agent** is pre-configured with two MCP tools:
+
+| Tool | Endpoint | Purpose |
+|------|----------|---------|
+| `fabric-rti-mcp-aca-oauth` | `https://fabric-rti-mcp-server.politeriver-0851880b.westus2.azurecontainerapps.io/mcp` | Query Eventhouse with KQL, manage Eventstreams, create Activator alerts, visualize data on Maps |
+| `fabric-api-mcp` | `https://api.fabric.microsoft.com/v1/mcp` | Query workspace artifacts, perform Fabric platform operations |
+
+#### Quick Setup
+
+1. **Prerequisites**: Ensure the Container App is deployed (see [Container Apps Deployment](#container-apps-deployment)) and you have `azure-identity` and `azure-ai-projects` installed:
+   ```bash
+   pip install azure-identity azure-ai-projects
+   ```
+
+2. **Review the configuration** (dry run):
+   ```bash
+   python scripts/setup_foundry_agent.py --dry-run
+   ```
+
+3. **Create the agent**:
+   ```bash
+   python scripts/setup_foundry_agent.py
+   ```
+
+   Or with a custom project endpoint:
+   ```bash
+   python scripts/setup_foundry_agent.py --project-endpoint "https://<your-hub>.services.ai.azure.com/api/projects/<your-project>"
+   ```
+
+4. **Test** in the [Azure AI Foundry portal](https://ai.azure.com):
+   - Open your project > **Agents** > Select **Fabricrti-agent**
+   - Try: "List my Kusto databases" or "Show all Eventstreams in my workspace"
+
+#### Configuration Files
+
+| File | Purpose |
+|------|---------|
+| `.foundry/agent-metadata.yaml` | Environment-specific Foundry project settings, agent name, ACR, and tool URLs |
+| `.foundry/agent-definition.json` | Agent name, instructions, description, and MCP tool configuration |
+| `scripts/setup_foundry_agent.py` | Script to create the agent in Azure AI Foundry |
+
+To customize the agent (e.g., change instructions or add tools), edit `.foundry/agent-definition.json` and rerun the setup script.
+
 ## 🛡️ Security Note
 
 Your credentials are always handled securely through the official [Azure Identity SDK](https://github.com/Azure/azure-sdk-for-net/blob/main/sdk/identity/Azure.Identity/README.md) - **we never store or manage tokens directly**.

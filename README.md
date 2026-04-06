@@ -54,6 +54,8 @@ The Fabric RTI MCP Server acts as a bridge between AI agents and Microsoft Fabri
 - List Map items in workspaces
 - Delete Map items
 
+**Microsoft Fabric Remote MCP**: In addition to the Fabric RTI MCP server, this deployment integrates with the [Microsoft Fabric Remote MCP](https://api.fabric.microsoft.com/v1/mcp) server — a first-party MCP endpoint hosted by Microsoft. It provides tools for broader Fabric platform operations including querying workspace items (lakehouses, warehouses, notebooks, pipelines), browsing OneLake files and folders, executing SQL queries against warehouses, and managing Fabric capacities. When combined with the Fabric RTI MCP, the [pre-configured Foundry agent](#pre-configured-foundry-agent-fabricrti-agent) gains a complete view of both real-time intelligence services and the wider Fabric data estate.
+
 ## 🚧 Coming soon
 - **Other RTI items**
 

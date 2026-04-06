@@ -1,5 +1,19 @@
 [![Install with UVX in VS Code](https://img.shields.io/badge/VS_Code-Install_Microsoft_Fabric_RTI_MCP_Server-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=ms-fabric-rti&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22microsoft-fabric-rti-mcp%22%5D%7D) [![PyPI Downloads](https://static.pepy.tech/badge/microsoft-fabric-rti-mcp)](https://pepy.tech/projects/microsoft-fabric-rti-mcp)
 
+## Fabric RTI MCP with Container Apps Deployment
+
+This repository is cloned from [microsoft/fabric-rti-mcp](https://github.com/microsoft/fabric-rti-mcp) and extended with the following:
+
+1. **Cloned from** [microsoft/fabric-rti-mcp](https://github.com/microsoft/fabric-rti-mcp)
+2. [**Container Apps Deployment**](#container-apps-deployment) — Deploy the MCP server as a remote, HTTPS-accessible service on Azure Container Apps with Entra ID authentication
+3. [**Connecting to the Container App from VS Code**](#connecting-to-the-container-app-from-vs-code) — Configure VS Code to use the deployed MCP server
+4. [**Connecting from Microsoft Foundry**](#connecting-from-microsoft-foundry) — Use the MCP server as a tool in Foundry agents
+5. [**Pre-configured Foundry Agent: Fabricrti-agent**](#pre-configured-foundry-agent-fabricrti-agent) — Ready-to-deploy agent using two MCPs:
+   1. **Fabric-rti-mcp-aca** — Query Eventhouse with KQL, manage Eventstreams, create Activator alerts, visualize data on Maps using Container Apps
+   2. **Microsoft Fabric Remote MCP** — Query workspace artifacts, perform Fabric platform operations using the Microsoft Fabric remote MCP
+
+---
+
 ## 🎯 Overview
 
 A comprehensive Model Context Protocol (MCP) server implementation for [Microsoft Fabric Real-Time Intelligence (RTI)](https://aka.ms/fabricrti).
@@ -389,6 +403,78 @@ The MCP server can be deployed using the method of your choice. For example, you
 Deploy the Fabric RTI MCP Server as a remote, HTTPS-accessible MCP server on Azure Container Apps with Entra ID authentication and Microsoft Foundry integration.
 
 #### Architecture
+
+The deployment creates the following resources in a single resource group:
+
+```mermaid
+graph TB
+    subgraph Clients
+        VSCode["VS Code<br/>(Delegated scope:<br/>Mcp.Tools.ReadWrite)"]
+        Foundry["Azure AI Foundry Agent<br/>(App role:<br/>Mcp.Tools.ReadWrite.All)"]
+        FabricMCP["Fabric Remote MCP<br/>api.fabric.microsoft.com/v1/mcp"]
+    end
+
+    subgraph Entra["Microsoft Entra ID"]
+        EntraApp["Entra App Registration<br/>Fabric RTI MCP Server API"]
+        OBO["OBO Token Exchange<br/>(User → Kusto audience)"]
+        FedCred["Federated Credential<br/>(User-Assigned MI)"]
+    end
+
+    subgraph RG["Azure Resource Group"]
+        subgraph ACA["Azure Container Apps Environment"]
+            ContainerApp["Container App<br/>fabric-rti-mcp-server<br/>(System + User-Assigned MI)"]
+        end
+        ACR["Azure Container Registry<br/>(Docker image store)"]
+        AppInsights["Application Insights<br/>(optional telemetry)"]
+        UMI["User-Assigned<br/>Managed Identity<br/>(ACR Pull + OBO assertion)"]
+    end
+
+    subgraph External["Fabric RTI Services"]
+        Eventhouse["Eventhouse / ADX<br/>(KQL Queries)"]
+        Eventstreams["Eventstreams<br/>(Real-time data)"]
+        Activator["Activator<br/>(Alerts)"]
+        Maps["Maps<br/>(Visualization)"]
+    end
+
+    subgraph FoundryProject["Azure AI Foundry Project"]
+        FoundryMI["Foundry Project<br/>Managed Identity"]
+    end
+
+    %% Client flows
+    VSCode -->|"Bearer token<br/>(delegated)"| ContainerApp
+    Foundry -->|"Bearer token<br/>(app role)"| ContainerApp
+    Foundry --> FabricMCP
+
+    %% Auth flows
+    ContainerApp -->|"Validate token"| EntraApp
+    ContainerApp -->|"OBO exchange<br/>(user assertion → Kusto token)"| OBO
+    UMI -->|"Client assertion"| FedCred
+    FoundryMI -.->|"App role assignment<br/>(Bicep provisioned)"| EntraApp
+
+    %% Infra flows
+    ACR -->|"Image pull<br/>(AcrPull role)"| ContainerApp
+    UMI -.->|"AcrPull role"| ACR
+    ContainerApp -->|"Telemetry"| AppInsights
+
+    %% Data flows
+    ContainerApp -->|"KQL queries<br/>(OBO token)"| Eventhouse
+    ContainerApp -->|"Manage streams"| Eventstreams
+    ContainerApp -->|"Create alerts"| Activator
+    ContainerApp -->|"Visualize"| Maps
+
+    %% Styling
+    classDef client fill:#4A90D9,stroke:#2C5F8A,color:#fff
+    classDef entra fill:#FFB900,stroke:#CC9400,color:#000
+    classDef azure fill:#0078D4,stroke:#005A9E,color:#fff
+    classDef fabric fill:#742774,stroke:#5A1D5A,color:#fff
+    classDef foundry fill:#00B294,stroke:#008A72,color:#fff
+
+    class VSCode,Foundry,FabricMCP client
+    class EntraApp,OBO,FedCred entra
+    class ContainerApp,ACR,AppInsights,UMI azure
+    class Eventhouse,Eventstreams,Activator,Maps fabric
+    class FoundryMI foundry
+```
 
 The deployment creates the following resources in a single resource group:
 

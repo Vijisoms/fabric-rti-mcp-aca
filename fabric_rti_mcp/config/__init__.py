@@ -92,7 +92,7 @@ class GlobalFabricRTIConfig:
             if os.getenv(env_var) is not None:
                 result.append(env_var)
         return result
-    
+
     @staticmethod
     def with_args() -> GlobalFabricRTIConfig:
         base_config = GlobalFabricRTIConfig.from_env()
@@ -103,10 +103,15 @@ class GlobalFabricRTIConfig:
         parser.add_argument("--http", action="store_true", help="Use HTTP transport")
         parser.add_argument("--host", type=str, help="HTTP host to listen on")
         parser.add_argument("--port", type=int, help="HTTP port to listen on")
-        parser.add_argument("--stateless-http", action="store_true", default=None, help="Enable or disable stateless HTTP")
+        parser.add_argument(
+            "--stateless-http", action="store_true", default=None, help="Enable or disable stateless HTTP"
+        )
         parser.add_argument("--use-obo-flow", action="store_true", default=None, help="Enable or disable OBO flow")
         parser.add_argument(
-            "--use-ai-foundry-compat", action="store_true", default=None, help="Enable or disable AI Foundry compatibility mode"
+            "--use-ai-foundry-compat",
+            action="store_true",
+            default=None,
+            help="Enable or disable AI Foundry compatibility mode",
         )
         args, _ = parser.parse_known_args()
 

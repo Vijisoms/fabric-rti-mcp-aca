@@ -16,73 +16,26 @@ This repository is cloned from [microsoft/fabric-rti-mcp](https://github.com/mic
 
 ## 🎯 Overview
 
-A comprehensive Model Context Protocol (MCP) server implementation for [Microsoft Fabric Real-Time Intelligence (RTI)](https://aka.ms/fabricrti).
-This server enables AI agents to interact with Fabric RTI services by providing tools through the MCP interface, allowing for seamless data querying, analysis, and streaming capabilities.
+This project combines two MCP servers to give AI agents a complete view of both real-time intelligence services and the wider Microsoft Fabric data estate. When deployed together with the [pre-configured Foundry agent](#pre-configured-foundry-agent-fabricrti-agent), agents can query streaming data, manage pipelines, browse OneLake, and more — all through a unified tool interface.
 
 > [!NOTE]  
-> This project is in Public Preview and implementation may significantly change prior to General Availability.
+> This Fabric RTI MCP ([microsoft/fabric-rti-mcp](https://github.com/microsoft/fabric-rti-mcp)) project is in Public Preview and implementation may significantly change prior to General Availability.
 
-### 🔍 How It Works
+### 1. Microsoft Fabric Real-Time Intelligence MCP
 
-The Fabric RTI MCP Server acts as a bridge between AI agents and Microsoft Fabric RTI services:
+A comprehensive [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server implementation for [Microsoft Fabric Real-Time Intelligence (RTI)](https://aka.ms/fabricrti). This server acts as a bridge between AI agents and Fabric RTI services — translating natural language requests into KQL queries, Eventstream operations, Activator triggers, and Map visualizations.
 
-- 🔄 **MCP Protocol**: Uses the Model Context Protocol to expose Fabric RTI capabilities as tools
-- 🏗️ **Natural Language to KQL**: AI agents can translate natural language requests into KQL queries and Eventstream management
+- 🔄 **MCP Protocol**: Exposes Fabric RTI capabilities as tools via the Model Context Protocol
+- 🏗️ **Natural Language to KQL**: AI agents translate natural language into KQL queries and Eventstream management
 - 💡 **Secure Authentication**: Leverages Azure Identity for seamless, secure access to your resources
 - ⚡ **Real-time Data Access**: Direct connection to Eventhouse and Eventstreams for live data analysis
 - 📊 **Unified Interface**: For both analytics and streaming workloads with intelligent parameter suggestions
 
-### ✨ Supported Services
+#### Tools
 
-**Eventhouse (Kusto)**: Execute KQL queries against Microsoft Fabric RTI [Eventhouse](https://aka.ms/eventhouse) and [Azure Data Explorer (ADX)](https://aka.ms/adx).
 
-**Eventstreams**: Manage Microsoft Fabric [Eventstreams](https://learn.microsoft.com/en-us/fabric/real-time-intelligence/event-streams/overview) for real-time data processing:
-- List Eventstreams in workspaces
-- Get Eventstream details and definitions
-- Create new Eventstreams
-- Update existing Eventstreams
-- Delete Eventstreams
 
-**Activator**: Create and manage Microsoft Fabric [Activator](https://learn.microsoft.com/en-us/fabric/real-time-intelligence/data-activator/activator-introduction) triggers for real-time alerting:
-- Create new triggers with KQL source monitoring
-- Set up email and Teams notifications when a condition occurs
-- List Activator artifacts in workspaces
 
-**Map**: Create and manage Microsoft Fabric [Map](https://learn.microsoft.com/en-us/fabric/real-time-intelligence/map/create-map) to visualize geospatial data:
-- Create a new map from a provided configuration
-- Visualize data on maps
-- List Map items in workspaces
-- Delete Map items
-
-**Microsoft Fabric Remote MCP**: In addition to the Fabric RTI MCP server, this deployment integrates with the [Microsoft Fabric Remote MCP](https://api.fabric.microsoft.com/v1/mcp) server — a first-party MCP endpoint hosted by Microsoft. It provides tools for broader Fabric platform operations including querying workspace items (lakehouses, warehouses, notebooks, pipelines), browsing OneLake files and folders, executing SQL queries against warehouses, and managing Fabric capacities. When combined with the Fabric RTI MCP, the [pre-configured Foundry agent](#pre-configured-foundry-agent-fabricrti-agent) gains a complete view of both real-time intelligence services and the wider Fabric data estate.
-
-## 🚧 Coming soon
-- **Other RTI items**
-
-### 🔍 Example Prompts
-
-**Eventhouse Analytics:**
-- "Get databases in my Eventhouse"
-- "Sample 10 rows from table 'StormEvents' in Eventhouse"
-- "What can you tell me about StormEvents data?"
-- "Analyze the StormEvents to come up with trend analysis across past 10 years of data"
-- "Analyze the commands in 'CommandExecution' table and categorize them as low/medium/high risks"
-
-**Eventstream Management:**
-- "List all Eventstreams in my workspace"
-- "Show me the details of my IoT data Eventstream"
-- "Create a new Eventstream for processing sensor data"
-- "Update my existing Eventstream to add a new destination"
-
-**Activator Alerts:**
-- "Using the StormEvents table, notify me via email when there is a flood in Illinois"
-- "Create a teams alert to notify me when my success rate drops below 95%"
-- "List all Activator artifacts in my workspace"
-
-**Map Visualization::**
-- "List all Map items in my workspace"
-- "Create a new Map and add LakeHouse with name 'MyLakeHouse' as a data source to Map item 'MyMap'"
-- "Delete a Map item with name 'MyMap' from my workspace"
 
 ### Available tools
 
@@ -131,6 +84,108 @@ The Fabric RTI MCP Server acts as a bridge between AI agents and Microsoft Fabri
 - **`map_update_definition`** - Replace the full JSON definition of an existing Map item
 - **`map_update`** - Partially update properties of an existing Map item
 - **`map_delete`** - Delete a Map item and its associated configuration
+
+### 2. Microsoft Fabric Remote MCP
+
+In addition to the Fabric RTI MCP server, this deployment integrates with the [Microsoft Fabric Remote MCP](https://api.fabric.microsoft.com/v1/mcp) server — a first-party MCP endpoint hosted by Microsoft. It provides tools for broader Fabric platform operations, giving agents access to the full data estate beyond real-time intelligence.
+
+####Available Tools
+
+**Workspace Management**
+
+| Tool | Description |
+|------|-------------|
+| `list_workspaces` | List all Fabric workspaces the user has access to |
+| `get_workspace` | Get detailed information about a specific workspace |
+| `create_workspace` | Create a new Fabric workspace (optionally in a specific capacity) |
+| `update_workspace` | Update a workspace's display name or description |
+| `delete_workspace` | Permanently delete a workspace and all its contents |
+
+**Workspace Role Management**
+
+| Tool | Description |
+|------|-------------|
+| `list_workspace_roles` | List all role assignments for a workspace |
+| `get_workspace_role` | Get details of a specific role assignment |
+| `add_workspace_role` | Grant a user, group, or service principal access with a role (Admin, Member, Contributor, Viewer) |
+| `update_workspace_role` | Update an existing role assignment |
+| `delete_workspace_role` | Revoke a user, group, or service principal's access |
+
+**Item Management**
+
+| Tool | Description |
+|------|-------------|
+| `list_items` | List all Fabric items in a workspace (Lakehouses, Warehouses, Notebooks, Pipelines, Eventhouses, Reports, Semantic Models, and [50+ item types](#supported-item-types)) |
+| `get_item` | Get metadata for a specific item |
+| `create_item` | Create a new Fabric item with optional definition or creation payload |
+| `update_item` | Update an item's display name or description |
+| `update_item_definition` | Update the full definition of an item (code, structure, configuration) |
+| `get_item_definition` | Retrieve the definition of an item (representation of the item and its state without data) |
+| `delete_item` | Permanently delete an item from a workspace |
+| `bulk_move_items` | Move multiple items to a workspace folder in a single operation |
+
+**Folder Management**
+
+| Tool | Description |
+|------|-------------|
+| `list_folders` | List folders within a workspace (with optional recursive traversal) |
+| `get_folder` | Get metadata for a single folder |
+| `create_folder` | Create a new folder in a workspace (optionally under a parent folder) |
+| `update_folder` | Update a folder's display name |
+| `move_folder` | Move a folder to a different parent within the same workspace |
+| `delete_folder` | Delete an empty folder from a workspace |
+
+**Capacities**
+
+| Tool | Description |
+|------|-------------|
+| `list_capacities` | List all Fabric capacities accessible to the authenticated user |
+
+**Knowledge & Operations**
+
+| Tool | Description |
+|------|-------------|
+| `get_knowledge` | Get contextual knowledge on item definitions (Notebook, Dataflow, Lakehouse, Report, Semantic Model) |
+| `get_operation_state` | Check the current state of a long-running operation |
+| `get_operation_result` | Retrieve the result of a completed long-running operation |
+
+<a id="supported-item-types"></a>
+<details>
+<summary><b>Supported Item Types</b></summary>
+
+Dashboard, Report, SemanticModel, PaginatedReport, Datamart, Lakehouse, Eventhouse, Environment, KQLDatabase, KQLQueryset, KQLDashboard, DataPipeline, Notebook, SparkJobDefinition, MLExperiment, MLModel, Warehouse, Eventstream, SQLEndpoint, MirroredWarehouse, MirroredDatabase, Reflex, GraphQLApi, MountedDataFactory, SQLDatabase, CopyJob, VariableLibrary, Dataflow, ApacheAirflowJob, WarehouseSnapshot, DigitalTwinBuilder, DigitalTwinBuilderFlow, MirroredAzureDatabricksCatalog, Map, AnomalyDetector, UserDataFunction, GraphModel, GraphQuerySet, SnowflakeDatabase, OperationsAgent, CosmosDBDatabase
+
+</details>
+
+When combined, the Fabric RTI MCP and the Fabric Remote MCP give the [pre-configured Foundry agent](#pre-configured-foundry-agent-fabricrti-agent) a complete view of both real-time intelligence services and the wider Fabric data estate.
+
+## 🚧 Coming soon
+- **Other RTI items**
+
+### 🔍 Example Prompts
+
+**Eventhouse Analytics:**
+- "Get databases in my Eventhouse"
+- "Sample 10 rows from table 'StormEvents' in Eventhouse"
+- "What can you tell me about StormEvents data?"
+- "Analyze the StormEvents to come up with trend analysis across past 10 years of data"
+- "Analyze the commands in 'CommandExecution' table and categorize them as low/medium/high risks"
+
+**Eventstream Management:**
+- "List all Eventstreams in my workspace"
+- "Show me the details of my IoT data Eventstream"
+- "Create a new Eventstream for processing sensor data"
+- "Update my existing Eventstream to add a new destination"
+
+**Activator Alerts:**
+- "Using the StormEvents table, notify me via email when there is a flood in Illinois"
+- "Create a teams alert to notify me when my success rate drops below 95%"
+- "List all Activator artifacts in my workspace"
+
+**Map Visualization::**
+- "List all Map items in my workspace"
+- "Create a new Map and add LakeHouse with name 'MyLakeHouse' as a data source to Map item 'MyMap'"
+- "Delete a Map item with name 'MyMap' from my workspace"
 
 ## Getting Started
 
